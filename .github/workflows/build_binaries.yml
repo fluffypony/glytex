@@ -237,7 +237,7 @@ jobs:
         shell: bash
         run: |
           #cargo install cross
-          cargo install cross --git https://github.com/cross-rs/cross
+          cargo install cross --git https://github.com/cross-rs/cross --locked
           echo "CARGO=cross" >> $GITHUB_ENV
           # Disable - [cross] warning: Found conflicting cross configuration
           echo "CROSS_NO_WARNINGS=0" >> $GITHUB_ENV
@@ -246,7 +246,7 @@ jobs:
         if: ${{ ( ! matrix.builds.cross ) }}
         shell: bash
         run: |
-          cargo install cargo-auditable cargo-audit
+          cargo install cargo-auditable cargo-audit --locked
           echo "CARGO=${{ env.CARGO }} auditable" >> $GITHUB_ENV
 
       - name: Build release targets
