@@ -22,6 +22,7 @@ pub(crate) struct ConfigFile {
     pub template_timeout_secs: u64,
     #[serde(default = "default_max_template_failures")]
     pub max_template_failures: u64,
+    pub iterations_per_cycle: Option<u32>,
 }
 
 impl Default for ConfigFile {
@@ -41,6 +42,7 @@ impl Default for ConfigFile {
             per_device_grid_sizes: vec![],
             template_timeout_secs: 3,
             max_template_failures: 10,
+            iterations_per_cycle: None,
         }
     }
 }

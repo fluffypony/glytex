@@ -230,6 +230,11 @@ struct Cli {
 
     #[arg(long)]
     engine: Option<String>,
+
+    /// The number of iterations to do on the GPU before returning. If this is not set,
+    /// it will try to optimize it to the point that it takes 1 second to run.
+    #[arg(short, long)]
+    iterations_per_cycle: Option<u32>,
 }
 
 async fn main_inner() -> Result<(), anyhow::Error> {
@@ -372,6 +377,10 @@ async fn main_inner() -> Result<(), anyhow::Error> {
 
     if let Some(max_template_failures) = cli.max_template_failures {
         config.max_template_failures = max_template_failures as u64;
+    }
+
+    if let Some(iterations_per_cycle) = cli.iterations_per_cycle {
+        config.iterations_per_cycle = Some(iterations_per_cycle);
     }
 
     let gpu_devices = gpu_status_file.gpu_devices.clone();
@@ -715,6 +724,7 @@ fn run_thread(
     stats_tx: Sender<HashrateSample>,
     shutdown: ShutdownSignal,
 ) -> Result<u64, anyhow::Error> {
+    let fixed_num_iterations = config.iterations_per_cycle;
     let tari_node_url = config.tari_node_url.clone();
     let runtime = Runtime::new()?;
     let client_type = if benchmark {
@@ -759,6 +769,11 @@ fn run_thread(
     let mut data = vec![0u64; 6];
     // let mut data_buf = data.as_slice().as_dbuf()?;
 
+    let mut num_iterations = 4;
+    if let Some(fixed_num_iterations) = fixed_num_iterations {
+        info!(target: LOG_TARGET, "Using fixed num iterations: {}", fixed_num_iterations);
+        num_iterations = fixed_num_iterations;
+    }
     loop {
         if shutdown.is_triggered() {
             return Ok(0);
@@ -809,7 +824,6 @@ fn run_thread(
         let mut last_printed = Instant::now();
         let mut last_reported_stats = Instant::now();
         let kernel = gpu_engine.create_kernel(&gpu_function)?;
-        let mut num_iterations = 4;
         loop {
             if running_time.elapsed() > Duration::from_secs(10) && benchmark {
                 let hash_rate = (nonce_start - first_nonce) / elapsed.elapsed().as_secs();
@@ -839,10 +853,12 @@ fn run_thread(
                             * data_buf.as_device_ptr(),
                             * &output_buf, */
             );
-            if mining_time.elapsed().as_secs() > 1500 {
-                num_iterations = cmp::max(1, num_iterations - 1);
-            } else if mining_time.elapsed().as_millis() < 1000 {
-                num_iterations = num_iterations + 1;
+            if fixed_num_iterations.is_none() {
+                if mining_time.elapsed().as_secs() > 1500 {
+                    num_iterations = cmp::max(1, num_iterations - 1);
+                } else if mining_time.elapsed().as_millis() < 1000 {
+                    num_iterations = num_iterations + 1;
+                }
             }
             let (nonce, hashes, diff) = match result {
                 Ok(values) => {
