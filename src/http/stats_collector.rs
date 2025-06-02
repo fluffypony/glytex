@@ -1,6 +1,7 @@
 use std::{
     collections::{HashMap, VecDeque},
     thread::current,
+    time::Duration,
 };
 
 use log::error;
@@ -49,9 +50,22 @@ pub(crate) struct StatsClient {
 
 impl StatsClient {
     pub async fn get_hashrate(&self) -> Result<GetHashrateResponse, anyhow::Error> {
+        self.get_hashrate_with_timeout(Duration::from_secs(5)).await
+    }
+    
+    pub async fn get_hashrate_with_timeout(&self, timeout: Duration) -> Result<GetHashrateResponse, anyhow::Error> {
         let (tx, rx) = oneshot::channel();
-        self.request_tx.send(StatsRequest::GetHashrate(tx)).await?;
-        Ok(rx.await?)
+        
+        // Send request with timeout to prevent hanging
+        tokio::time::timeout(timeout, self.request_tx.send(StatsRequest::GetHashrate(tx)))
+            .await
+            .map_err(|_| anyhow::anyhow!("Stats request send timed out after {:?}", timeout))??;
+            
+        // Wait for response with timeout
+        tokio::time::timeout(timeout, rx)
+            .await
+            .map_err(|_| anyhow::anyhow!("Stats request response timed out after {:?}", timeout))?
+            .map_err(|e| anyhow::anyhow!("Stats request failed: {}", e))
     }
 }
 impl StatsCollector {
