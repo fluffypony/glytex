@@ -411,6 +411,7 @@ async fn main_inner() -> Result<(), anyhow::Error> {
     );
 
     if cli.find_optimal {
+        println!("🚀 Starting auto-tuning for optimal GPU performance...");
         let mut best_hashrate = 0;
         let mut best_grid_size = 1;
         let mut current_grid_size = 32;
@@ -464,8 +465,11 @@ async fn main_inner() -> Result<(), anyhow::Error> {
                 // best_grid_size = config.single_grid_size;
                 // best_block_size = config.block_size;
                 println!(
-                    "Best hashrate: {} grid_size: {}, current_grid: {} block_size: {} Prev Hash {}",
-                    best_hashrate, best_grid_size, current_grid_size, config.block_size, prev_hashrate
+                    "📈 NEW BEST! Hashrate: {} H/s | Grid: {} | Block: {} | Previous: {} H/s",
+                    best_hashrate.to_formatted_string(&Locale::en), 
+                    best_grid_size, 
+                    config.block_size, 
+                    prev_hashrate.to_formatted_string(&Locale::en)
                 );
             }
             // if total_hashrate < prev_hashrate {
@@ -496,6 +500,12 @@ async fn main_inner() -> Result<(), anyhow::Error> {
             }
             prev_hashrate = total_hashrate;
         }
+        
+        println!("🎯 Auto-tuning completed! Optimal settings:");
+        println!("   Grid size: {}", best_grid_size);
+        println!("   Best hashrate: {} H/s", best_hashrate.to_formatted_string(&Locale::en));
+        println!("   Use these settings with: --grid-size {}", best_grid_size);
+        
         return Ok(());
     }
 
@@ -763,11 +773,10 @@ fn run_thread(
     //     .context("get suggest config")?;
     // let (grid_size, block_size) = (23, 50);
 
-    let output = vec![0u64; 5];
-    // let mut output_buf = output.as_slice().as_dbuf()?;
-
+    // Pre-allocate buffers outside the mining loop for better performance
+    let mut output = vec![0u64; 5];
     let mut data = vec![0u64; 6];
-    // let mut data_buf = data.as_slice().as_dbuf()?;
+    let mut hash64 = [0u64; 4]; // Reusable hash conversion buffer
 
     let mut num_iterations = 1;
     if let Some(fixed_num_iterations) = fixed_num_iterations {
@@ -807,7 +816,9 @@ fn run_thread(
             },
         }
 
-        let hash64 = copy_u8_to_u64(mining_hash.to_vec());
+        // Use pre-allocated buffer for hash conversion - eliminates allocation per iteration
+        copy_u8_to_u64_fast(mining_hash.as_ref(), &mut hash64);
+        
         data[0] = 0;
         data[1] = hash64[0];
         data[2] = hash64[1];
@@ -1064,6 +1075,24 @@ async fn get_template_from_client(
         mining_hash,
     })
 }
+/// Zero-copy conversion from u8 slice to u64 slice for mining hash
+/// This avoids allocations in the critical mining loop
+fn copy_u8_to_u64_fast(input: &[u8], output: &mut [u64; 4]) {
+    // Mining hash is always 32 bytes = 4 u64s
+    debug_assert_eq!(input.len(), 32, "Mining hash must be 32 bytes");
+    
+    // Use unsafe for zero-copy conversion - much faster than allocating Vec
+    unsafe {
+        let input_ptr = input.as_ptr() as *const u64;
+        output[0] = input_ptr.read_unaligned();
+        output[1] = input_ptr.add(1).read_unaligned();
+        output[2] = input_ptr.add(2).read_unaligned();
+        output[3] = input_ptr.add(3).read_unaligned();
+    }
+}
+
+// Keep the old function for compatibility, but mark it as slow
+#[allow(dead_code)]
 fn copy_u8_to_u64(input: Vec<u8>) -> Vec<u64> {
     let mut output: Vec<u64> = Vec::with_capacity(input.len() / 8);
 

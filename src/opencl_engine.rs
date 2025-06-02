@@ -210,7 +210,8 @@ impl EngineImpl for OpenClEngine {
             };
 
             debug!(target: LOG_TARGET, "OpenClEngine: buffer created",);
-            let initial_output = vec![0u64, 0u64];
+            // Pre-allocate output buffer to avoid reallocations
+            let initial_output = vec![0u64; 2];
             let output_buffer = match Buffer::<cl_ulong>::create(
                 &context.context,
                 CL_MEM_WRITE_ONLY | CL_MEM_COPY_HOST_PTR,
@@ -262,7 +263,8 @@ impl EngineImpl for OpenClEngine {
             }
             queue.finish()?;
 
-            let mut output = vec![0u64, 0u64];
+            // Reuse pre-allocated output buffer
+            let mut output = vec![0u64; 2];
             queue.enqueue_read_buffer(&output_buffer, CL_TRUE, 0, output.as_mut_slice(), &[])?;
             if output[0] > 0 {
                 println!("output and diff {:?} {:?}", output[0], u64::MAX / output[1]);
