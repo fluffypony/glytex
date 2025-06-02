@@ -244,7 +244,7 @@ async fn main_inner() -> Result<(), anyhow::Error> {
         .expect("Could not set up logging");
     }
 
-    let _benchmark = cli.benchmark;
+    let benchmark = cli.benchmark;
 
     let _submit = true;
 
