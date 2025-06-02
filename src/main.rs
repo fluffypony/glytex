@@ -1,10 +1,8 @@
 use std::{
-    cmp,
     convert::TryInto,
     env::current_dir,
     fs::{self, File},
     io::Write,
-    num,
     panic,
     path::{Path, PathBuf},
     process,
@@ -21,11 +19,10 @@ use cust::{
     memory::{AsyncCopyDestination, DeviceCopy},
     prelude::*,
 };
-use gpu_status_file::GpuStatus;
+
 use http::stats_collector::{self, HashrateSample};
 use log::{debug, error, info, warn};
 use minotari_app_grpc::{
-    conversions::block,
     tari_rpc::{Block, BlockHeader as grpc_header, NewBlockTemplate, TransactionOutput as GrpcTransactionOutput},
 };
 use multi_engine_wrapper::{EngineType, MultiEngineWrapper};
@@ -45,7 +42,6 @@ use tari_shutdown::{Shutdown, ShutdownSignal};
 use tari_utilities::epoch_time::EpochTime;
 use tokio::{
     runtime::Runtime,
-    signal,
     sync::{broadcast::Sender, RwLock},
     time::sleep,
 };
@@ -53,7 +49,6 @@ use tokio::{
 use crate::{
     config_file::ConfigFile,
     engine_impl::EngineImpl,
-    gpu_engine::GpuEngine,
     gpu_status_file::GpuStatusFile,
     http::{config::Config, server::HttpServer},
     node_client::ClientType,
@@ -249,9 +244,9 @@ async fn main_inner() -> Result<(), anyhow::Error> {
         .expect("Could not set up logging");
     }
 
-    let benchmark = cli.benchmark;
+    let _benchmark = cli.benchmark;
 
-    let submit = true;
+    let _submit = true;
 
     #[cfg(not(any(feature = "nvidia", feature = "opencl", feature = "metal")))]
     {
@@ -419,7 +414,7 @@ async fn main_inner() -> Result<(), anyhow::Error> {
         let mut last_grid_size_increase = 0;
         let mut prev_hashrate = 0;
 
-        while true {
+        loop {
             let mut config = config.clone();
             config.single_grid_size = current_grid_size;
             // config.block_size = ;
